@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Malini - Dixon SMT Assistant</title>
+  <!-- Tailwind CSS for styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Marked.js for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    // Simulated user database (NEVER store passwords like this in real applications)
+    let registeredUsers = {};
+
+    function signup() {
+      const emailInput = document.getElementById("signupEmail").value.trim();
+      const passwordInput = document.getElementById("signupPassword").value.trim();
+      const signupErrorMessage = document.getElementById("signupErrorMessage");
+
+      if (emailInput.endsWith("@dixoninfo.com") && passwordInput.length > 0) {
+        if (!(emailInput in registeredUsers)) {
+          registeredUsers[emailInput] = passwordInput;
+          signupErrorMessage.textContent = "Signup successful! Please login now.";
+          document.getElementById("signupPage").classList.add("hidden");
+          document.getElementById("loginPage").classList.remove("hidden");
+        } else {
+          signupErrorMessage.textContent = "Email already registered.";
+        }
+      } else {
+        signupErrorMessage.textContent = "Invalid email or password.";
+      }
+    }
+
+    function login() {
+      const emailInput = document.getElementById("loginEmail").value.trim();
+      const passwordInput = document.getElementById("loginPassword").value.trim();
+      const loginErrorMessage = document.getElementById("loginErrorMessage");
+
+      if (emailInput in registeredUsers && registeredUsers[emailInput] === passwordInput) {
+        document.getElementById("loginPage").classList.add("hidden");
+        document.getElementById("chatPage").classList.remove("hidden");
+      } else {
+        loginErrorMessage.textContent = "Invalid username or password.";
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+  <!-- Signup Page -->
+  <div id="signupPage" class="w-full max-w-md bg-gray-800 rounded-xl shadow-xl p-6 flex flex-col">
+    <h1 class="text-2xl font-bold mb-4">Signup </h1>
+    <input id="signupEmail" type="email" placeholder="Enter your @dixoninfo.com email" 
+           class="bg-gray-700 text-white p-3 rounded-lg focus:outline-none mb-4" />
+    <input id="signupPassword" type="password" placeholder="Enter your password" 
+           class="bg-gray-700 text-white p-3 rounded-lg focus:outline-none mb-4" />
+    <button onclick="signup()" class="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700">Signup</button>
+    <p id="signupErrorMessage" class="text-red-500 mt-2"></p>
+    <button onclick="document.getElementById('signupPage').classList.add('hidden'); document.getElementById('loginPage').classList.remove('hidden');" 
+            class="bg-gray-600 px-4 py-2 rounded-lg hover:bg-gray-700 mt-4">Already have an account? Login</button>
+  </div>
+
+  <!-- Login Page -->
+  <div id="loginPage" class="hidden w-full max-w-md bg-gray-800 rounded-xl shadow-xl p-6 flex flex-col">
+    <h1 class="text-2xl font-bold mb-4">Login</h1>
+    <input id="loginEmail" type="email" placeholder="Enter your @dixoninfo.com email" 
+           class="bg-gray-700 text-white p-3 rounded-lg focus:outline-none mb-4" />
+    <input id="loginPassword" type="password" placeholder="Enter your password" 
+           class="bg-gray-700 text-white p-3 rounded-lg focus:outline-none mb-4" />
+    <button onclick="login()" class="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700">Login</button>
+    <p id="loginErrorMessage" class="text-red-500 mt-2"></p>
+    <button onclick="document.getElementById('loginPage').classList.add('hidden'); document.getElementById('signupPage').classList.remove('hidden');" 
+            class="bg-gray-600 px-4 py-2 rounded-lg hover:bg-gray-700 mt-4">Don't have an account? Signup</button>
+  </div>
+
+  <!-- Chat Page -->
+  <div id="chatPage" class="hidden w-full max-w-2xl bg-gray-800 rounded-xl shadow-xl p-6 flex flex-col relative">
+    <!-- PADGET Logo in Top Left Corner -->
+    <div class="absolute top-4 left-4">
+      <img src="https://drive.google.com/thumbnail?id=1CdfZtfVfcW92gb04h9-Cof-HrGZZh1ia" class="w-24 h-auto">
+    </div>
+
+    <!-- Header with Malini logo and title -->
+    <div class="flex items-center space-x-4 mb-6 mt-16">
+      <img src="https://cdn.discordapp.com/attachments/1292447964811366480/1353804437356937277/WhatsApp_Image_2025-03-25_at_00.19.08_b056aeb0.jpg?ex=67e2fc22&is=67e1aaa2&hm=0c76a2d3430ffcc014ff1c97e301b82abb8a9dd5408ea0a90673f266ef07283e&" 
+           alt="Malini Logo" class="w-16 h-16 rounded-full border-2 border-gray-600">
+      <h1 class="text-2xl font-bold">Hi there! I am Malini, your AI Assistant</h1>
+    </div>
+
+    <!-- Chat messages container -->
+    <div id="chatBox" class="flex flex-col space-y-3 overflow-y-auto h-96 p-3 border border-gray-700 rounded-lg"></div>
+
+    <!-- Input area -->
+    <div class="flex mt-4">
+      <input id="promptInput" type="text" placeholder="Enter your querry here!..." 
+             class="flex-1 bg-gray-700 text-white p-3 rounded-l-lg focus:outline-none" />
+      <button id="sendButton" class="bg-blue-600 px-4 py-2 rounded-r-lg hover:bg-blue-700">Send</button>
+    </div>
+  </div>
+
+  <!-- JavaScript for chatbot functionality -->
+  <script type="module">
+    import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+
+    const API_KEY = "AIzaSyBL0-j4r_xkzGcDTET1azXacrKqoWsJPiA"; // Replace with your key if needed.
+    const MODEL_ID = "gemini-2.0-flash";
+
+    // Base instruction for all queries
+    const BASE_INSTRUCTION = `
+      You are an expert assistant for Dixon Technologies, a mobile phone manufacturing company. 
+      All queries are related to SMT (Surface-Mount Technology) lines for mobile phone production. 
+      The company uses the following equipment: Solder Paste Printing - CKG, Pick and Place - Panasonic, 
+      Kohyoung - AOI & SPI, Reflow - JTU / Heller. For every query, provide a detailed, step-by-step 
+      solution tailored to this context unless explicitly stated otherwise. Format your response as a 
+      numbered list of steps (e.g., Step 1, Step 2, etc.) in ascending order of ease of use, starting 
+      with the simplest and most straightforward actions, progressing to more complex steps only if 
+      necessary, to ensure maximum usability for the operator.
+    `;
+
+    const pickupErrorInstructions = `
+**Step-by-step to resolve the Pickup Position Error on a Panasonic Pick and Place Machine at Dixon Technologies:**
+
+- **Step 1:** Go to Home Page  
+- **Step 2:** Select the Arrange - ArrIndic  
+- **Step 3:** Go to Arrange-parts Prepare Nozzle  
+- **Step 4:** Select the option Feeder  
+- **Step 5:** Select the pickup position  
+- **Step 6:** Feeder list will be shown on the screen  
+- **Step 7:** Select the feeder which has offset (common with mobile phone components)  
+- **Step 8:** Click on Teach Start  
+- **Step 9:** Teaching Window will be shown on the screen  
+- **Step 10:** Adjust The X-Y OFFSET Manually for precise mobile phone part placement  
+- **Step 11:** Click on the Manual set  
+- **Step 12:** Save option will appear, click Yes  
+- **Step 13:** Go to Home Page again  
+- **Step 14:** Select the Arrange - ArrIndic  
+- **Step 15:** Go to Arrange-parts Prepare Nozzle  
+- **Step 16:** Select the TBL14  
+- **Step 17:** Click on Nozzle check
+    `;
+
+    async function generateResponse() {
+      const promptInput = document.getElementById("promptInput");
+      const chatBox = document.getElementById("chatBox");
+      const userPrompt = promptInput.value.trim();
+      if (!userPrompt) return;
+
+      appendMessage("user", userPrompt);
+      promptInput.value = "";
+
+      appendMessage("loading", "Malini is analyzing query...");
+
+      try {
+        if (userPrompt.toLowerCase().includes("pickup position error")) {
+          const formattedText = marked.parse(pickupErrorInstructions);
+          removeLoadingMessage();
+          appendMessage("ai", formattedText);
+        } else {
+          const genAI = new GoogleGenerativeAI(API_KEY);
+          const model = genAI.getGenerativeModel({ model: MODEL_ID });
+          const fullPrompt = `${BASE_INSTRUCTION}\n\nUser query: "${userPrompt}"`;
+          const result = await model.generateContent(fullPrompt);
+          const response = await result.response;
+          const text = await response.text();
+          const formattedText = marked.parse(text);
+
+          removeLoadingMessage();
+          appendMessage("ai", formattedText);
+        }
+      } catch (error) {
+        removeLoadingMessage();
+        appendMessage("ai", "⚠️ Error retrieving response. Please try again.");
+        console.error(error);
+      }
+    }
+
+    function appendMessage(sender, text) {
+      const chatBox = document.getElementById("chatBox");
+      const messageDiv = document.createElement("div");
+
+      if (sender === "user") {
+        messageDiv.className = "bg-blue-600 text-white self-end p-3 rounded-lg max-w-full break-words";
+      } else if (sender === "ai") {
+        messageDiv.className = "bg-gray-700 text-white self-start p-3 rounded-lg max-w-full break-words";
+      } else if (sender === "loading") {
+        messageDiv.className = "text-gray-400 italic self-start p-3";
+        messageDiv.id = "loadingMessage";
+      }
+      messageDiv.innerHTML = text;
+      chatBox.appendChild(messageDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function removeLoadingMessage() {
+      const loadingMsg = document.getElementById("loadingMessage");
+      if (loadingMsg) loadingMsg.remove();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("sendButton").addEventListener("click", generateResponse);
+      document.getElementById("promptInput").addEventListener("keypress", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          generateResponse();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
